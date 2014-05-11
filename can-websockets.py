@@ -65,9 +65,9 @@ class CANPacketizer:
         return encoded
         
 def new_packet(packet):
-    print packet
+    print(packet)
     for connection in connection_list:
-        print connection
+        print(connection)
         loop.call_soon_threadsafe(connection.sendMessage,json.dumps(packet.__dict__))
         
 class InterfaceC3Telemetry(threading.Thread):
@@ -92,7 +92,7 @@ class InterfaceC3Telemetry(threading.Thread):
 				packet = self.packetizer.decode(stream)
 				new_packet(packet)
 			except DecodeError as e:
-				print "malformed C3 packet at time",e, packet.time,''.join( [ "%02X " % ord( x ) for x in stream ] ).strip()
+				print("malformed C3 packet at time",e, packet.time,''.join( [ "%02X " % ord( x ) for x in stream ] ).strip())
 				continue
 			except IndexError:
 				continue
@@ -139,23 +139,23 @@ if __name__ == '__main__':
 	
     args = argparser.parse_args()
     if args.interface == 'list':
-	    print '''Supported interface types:
-	    c3telem\tCentaurus 3 live telemetry'''
+	    print('''Supported interface types:
+	    c3telem\tCentaurus 3 live telemetry''')
 	    sys.exit()
 	
     if args.log != None:
 	    logger = Logger(args.log)
 
-    print 'Type `can-websockets.py --help` for usage information.'
+    print('Type `can-websockets.py --help` for usage information.')
     
     if '-f' in sys.argv:
         input_file = sys.argv[sys.argv.index('-f') + 1]
         if args.interface == 'c3telem':
-            print 'Opening C3-style serial telemetry from serial port',input_file
+            print('Opening C3-style serial telemetry from serial port',input_file)
             interface = InterfaceC3Telemetry(input_file)
             interface.start()
         else:
-            print 'No interface type specified. Use `-i list` to list available types.'
+            print('No interface type specified. Use `-i list` to list available types.')
             interface = InterfaceNull()
 
 
