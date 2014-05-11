@@ -4,6 +4,28 @@ import cobs
 import threading
 import argparse
 import sys
+from pycrc.crc_algorithms import Crc
+import serial
+import asyncio
+import json
+
+def uint8(word):
+	return ord(word);
+
+def uint16(word):
+	return (ord(word[0]) << 8) + ord(word[1])
+	
+def uint32(word):
+	return (ord(word[0]) << 24) + (ord(word[1]) << 16) + (ord(word[2]) << 8) + ord(word[3])
+
+class Packet:
+	def __init__(self):
+		self.rtr = False
+		self.id = 0
+		self.data = []
+
+class DecodeError(Exception):
+    pass
 
 class CANPacketizer:
     def __init__(self):
@@ -42,11 +64,18 @@ class CANPacketizer:
         encoded += '\x00'
         return encoded
         
+def new_packet(packet):
+    print packet
+    for connection in connection_list:
+        print connection
+        loop.call_soon_threadsafe(connection.sendMessage,json.dumps(packet.__dict__))
+        
 class InterfaceC3Telemetry(threading.Thread):
 	def __init__(self, _filename):
 		threading.Thread.__init__(self)
 		self.filename = _filename
 		self.packetizer = CANPacketizer()
+		self.daemon = True
 	def run(self):
 		self.end_thread = False
 		self.ser = serial.Serial(self.filename, 115200, timeout=1)
@@ -61,18 +90,19 @@ class InterfaceC3Telemetry(threading.Thread):
 					bytes.append(byte)
 				stream = ''.join(bytes)
 				packet = self.packetizer.decode(stream)
-				packet.time = time.time()
 				new_packet(packet)
 			except DecodeError as e:
 				print "malformed C3 packet at time",e, packet.time,''.join( [ "%02X " % ord( x ) for x in stream ] ).strip()
 				continue
-			except:
+			except IndexError:
 				continue
 	def send(self, packet):
 		encoded = self.packetizer.encode(packet)
 		self.ser.write(encoded)
 	def stop(self):
 		self.end_thread = True
+		
+connection_list = []
 
 class CANServer(WebSocketServerProtocol):
 
@@ -81,6 +111,7 @@ class CANServer(WebSocketServerProtocol):
 
    def onOpen(self):
       print("WebSocket connection open.")
+      connection_list.append(self)
 
    def onMessage(self, payload, isBinary):
       if isBinary:
@@ -90,12 +121,11 @@ class CANServer(WebSocketServerProtocol):
 
    def onClose(self, wasClean, code, reason):
       print("WebSocket connection closed: {0}".format(reason))
+      connection_list.remove(self)
 
-
+loop = None
 
 if __name__ == '__main__':
-
-    import asyncio
    
     argparser = argparse.ArgumentParser(description='''
 	    can-websockets is a telemetry server that takes data from a serial
@@ -105,8 +135,6 @@ if __name__ == '__main__':
     argparser.add_argument('-f', '--file', help='input log or serial port name')
     argparser.add_argument('-i', '--interface', help='''CAN interface type,
 	    use `-i list` to get supported types''')
-    argparser.add_argument('-b', '--browser', help='''Open web browser
-	    with URL of this server''', action='store_true')
     argparser.add_argument('-l', '--log', help='Write to specified log file')
 	
     args = argparser.parse_args()
@@ -119,6 +147,16 @@ if __name__ == '__main__':
 	    logger = Logger(args.log)
 
     print 'Type `can-websockets.py --help` for usage information.'
+    
+    if '-f' in sys.argv:
+        input_file = sys.argv[sys.argv.index('-f') + 1]
+        if args.interface == 'c3telem':
+            print 'Opening C3-style serial telemetry from serial port',input_file
+            interface = InterfaceC3Telemetry(input_file)
+            interface.start()
+        else:
+            print 'No interface type specified. Use `-i list` to list available types.'
+            interface = InterfaceNull()
 
 
     factory = WebSocketServerFactory("ws://localhost:9000", debug = False)
