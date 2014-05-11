@@ -102,6 +102,43 @@ class InterfaceC3Telemetry(threading.Thread):
 	def stop(self):
 		self.end_thread = True
 		
+class InterfaceC2Log(threading.Thread):
+	def __init__(self, _filename):
+		threading.Thread.__init__(self)
+		self.filename = _filename
+	def run(self):
+		self.end_thread = False
+		f = open(self.filename,'r')
+		offset = None
+		for line in f:
+			if self.end_thread == True:
+				return
+			line = line.strip().split(' ')
+			if line[0] == '':
+				continue
+			if line[1] == '':
+				continue
+			packet = Packet()
+			packet.time = float(line[0])
+			if not offset:
+				offset = time.time() - packet.time
+			try:
+				packet.id = int(line[1][0:3],16)
+				packet.data = [int(line[1][i:i+2], 16) for i in xrange(3,len(line[1]),2)]
+			except ValueError:
+				print('malformed packet at time', packet.time)
+				continue
+			new_packet(packet)
+			delta = offset + packet.time - time.time()
+			if delta > 0:
+				time.sleep(delta)
+		f.close()
+		print("Done sending logged packets")
+	def send(self, packet):
+		pass
+	def stop(self):
+		self.end_thread = True
+		
 class InterfaceNull(threading.Thread):
 	def __init(self):
 		threading.Thread.__init(self)
@@ -150,6 +187,7 @@ if __name__ == '__main__':
     args = argparser.parse_args()
     if args.interface == 'list':
 	    print('''Supported interface types:
+	    c2log\tC2/C3/D1 log replay
 	    c3telem\tCentaurus 3 live telemetry''')
 	    sys.exit()
 	
@@ -163,6 +201,10 @@ if __name__ == '__main__':
         if args.interface == 'c3telem':
             print('Opening C3-style serial telemetry from serial port',input_file)
             interface = InterfaceC3Telemetry(input_file)
+            interface.start()
+        elif args.interface == 'c2log':
+            print('Replaying C2 format log file',input_file)
+            interface = InterfaceC2Log(input_file)
             interface.start()
         else:
             print('No interface type specified. Use `-i list` to list available types.')
