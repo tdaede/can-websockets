@@ -2,6 +2,8 @@ from autobahn.asyncio.websocket import WebSocketServerProtocol, \
                                        WebSocketServerFactory
 import cobs
 import threading
+import argparse
+import sys
 
 class CANPacketizer:
     def __init__(self):
@@ -93,19 +95,43 @@ class CANServer(WebSocketServerProtocol):
 
 if __name__ == '__main__':
 
-   import asyncio
+    import asyncio
+   
+    argparser = argparse.ArgumentParser(description='''
+	    can-websockets is a telemetry server that takes data from a serial
+	    port or log file, and presents it va a HTTP and JSON API.
+	    It also can log packets to disk.
+	    ''')
+    argparser.add_argument('-f', '--file', help='input log or serial port name')
+    argparser.add_argument('-i', '--interface', help='''CAN interface type,
+	    use `-i list` to get supported types''')
+    argparser.add_argument('-b', '--browser', help='''Open web browser
+	    with URL of this server''', action='store_true')
+    argparser.add_argument('-l', '--log', help='Write to specified log file')
+	
+    args = argparser.parse_args()
+    if args.interface == 'list':
+	    print '''Supported interface types:
+	    c3telem\tCentaurus 3 live telemetry'''
+	    sys.exit()
+	
+    if args.log != None:
+	    logger = Logger(args.log)
 
-   factory = WebSocketServerFactory("ws://localhost:9000", debug = False)
-   factory.protocol = CANServer
+    print 'Type `can-websockets.py --help` for usage information.'
 
-   loop = asyncio.get_event_loop()
-   coro = loop.create_server(factory, '127.0.0.1', 9000)
-   server = loop.run_until_complete(coro)
 
-   try:
-      loop.run_forever()
-   except KeyboardInterrupt:
-      pass
-   finally:
-      server.close()
-      loop.close()
+    factory = WebSocketServerFactory("ws://localhost:9000", debug = False)
+    factory.protocol = CANServer
+
+    loop = asyncio.get_event_loop()
+    coro = loop.create_server(factory, '127.0.0.1', 9000)
+    server = loop.run_until_complete(coro)
+
+    try:
+       loop.run_forever()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        server.close()
+        loop.close()
