@@ -1,7 +1,7 @@
 from autobahn.asyncio.websocket import WebSocketServerProtocol, \
                                        WebSocketServerFactory
-from pycrc.crc_algorithms import Crc
 import cobs
+import threading
 
 class CANPacketizer:
     def __init__(self):
@@ -39,6 +39,38 @@ class CANPacketizer:
         encoded = cobs.encode(''.join(out))
         encoded += '\x00'
         return encoded
+        
+class InterfaceC3Telemetry(threading.Thread):
+	def __init__(self, _filename):
+		threading.Thread.__init__(self)
+		self.filename = _filename
+		self.packetizer = CANPacketizer()
+	def run(self):
+		self.end_thread = False
+		self.ser = serial.Serial(self.filename, 115200, timeout=1)
+		while 1:
+			if self.end_thread == True:
+				break
+			try:
+				byte = None
+				bytes = []
+				while byte != '\x00':
+					byte = self.ser.read(1)
+					bytes.append(byte)
+				stream = ''.join(bytes)
+				packet = self.packetizer.decode(stream)
+				packet.time = time.time()
+				new_packet(packet)
+			except DecodeError as e:
+				print "malformed C3 packet at time",e, packet.time,''.join( [ "%02X " % ord( x ) for x in stream ] ).strip()
+				continue
+			except:
+				continue
+	def send(self, packet):
+		encoded = self.packetizer.encode(packet)
+		self.ser.write(encoded)
+	def stop(self):
+		self.end_thread = True
 
 class CANServer(WebSocketServerProtocol):
 
