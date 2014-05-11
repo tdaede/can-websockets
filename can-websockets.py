@@ -102,6 +102,16 @@ class InterfaceC3Telemetry(threading.Thread):
 	def stop(self):
 		self.end_thread = True
 		
+class InterfaceNull(threading.Thread):
+	def __init(self):
+		threading.Thread.__init(self)
+	def run(self):
+		pass
+	def send(self, packet):
+		pass
+	def stop(self):
+		pass
+		
 connection_list = []
 
 class CANServer(WebSocketServerProtocol):
